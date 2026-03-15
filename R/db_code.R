@@ -18,6 +18,11 @@ get_users <- function(con) {
     pull("user")
 }
 
+get_wordlist <- function(con) {
+  tbl(con, I("lexdata.wordlist")) |>
+    collect()
+}
+
 get_word_log <- function(con, selected_user) {
   word_log <- tbl(con, I("lexdata.wordlog")) |>
     filter(user == selected_user) |>
@@ -48,8 +53,28 @@ user_summary <- function(con, user) {
     full_join(form_log, by = "word") |>
     arrange(desc(last_attempt))
 
-  gt(summary_log) |>
-    fmt_datetime(last_attempt)
+  summary_log
 }
 
 
+progress_summary <- function(con, summary_log) {
+  wordlist <- get_wordlist(con) |>
+    select(word, difficulty)
+  
+  progress <- wordlist |> 
+    left_join(summary_log, by="word") |> 
+    replace_na(list(correct = 0, attempts = 0, form = "")) |> 
+    mutate(progress = case_when(
+      form == "✅✅✅✅✅" ~ "Learned",
+      correct == 0 ~ "Unlearned",
+      .default = "Variable"
+    )) |> 
+    mutate(progress_numeric = case_when(
+      progress == "Learned" ~ 1,
+      progress == "Unlearned" ~ 0,
+      .default = 0.5
+    ))
+  
+  
+  progress
+}
